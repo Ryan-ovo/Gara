@@ -16,16 +16,16 @@ func NewEngine() *Engine {
 }
 
 func (e *Engine) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	c := newContext(writer, request)
-	e.router.handle(c)
+	ctx := newContext(writer, request)
+	e.router.handle(ctx)
 }
 
 func (e *Engine) GET(path string, handler HandlerFunc) {
-	e.router.addRoute("Get", path, handler)
+	e.router.addRoute("GET", path, handler)
 }
 
 func (e *Engine) POST(path string, handler HandlerFunc) {
-	e.router.addRoute("Post", path, handler)
+	e.router.addRoute("POST", path, handler)
 }
 
 func (e *Engine) Run(addr string) error {

@@ -1,6 +1,7 @@
 package gara
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -14,14 +15,24 @@ type router struct {
 
 func newRouter() *router {
 	return &router{
+		roots:    make(map[string]*trie),
 		handlers: make(map[string]HandlerFunc),
 	}
 }
 
 func (r *router) handle(ctx *Context) {
-	key := ctx.Method + "-" + ctx.Path
-	if handler, ok := r.handlers[key]; ok {
-		handler(ctx)
+	node, param := r.getRoute(ctx.Method, ctx.Path)
+	for k, v := range r.handlers {
+		fmt.Println(k, v)
+	}
+	if node != nil {
+		ctx.Params = param
+		key := ctx.Method + "-" + node.path
+		if handler, ok := r.handlers[key]; ok {
+			handler(ctx)
+		}else {
+			fmt.Println("hahaha")
+		}
 	} else {
 		ctx.String(http.StatusNotFound, "404 not found: %s\n", ctx.Path)
 	}
@@ -33,18 +44,18 @@ func (r *router) addRoute(method, path string, handler HandlerFunc) {
 		r.roots[method] = &trie{son: make(map[string]*trie)}
 	}
 	root := r.roots[method]
+	key := method + "-" + path
 	for _, part := range parts {
 		if root.son[part] == nil {
 			root.son[part] = &trie{
-				part: part,
-				son: make(map[string]*trie),
+				part:   part,
+				son:    make(map[string]*trie),
 				isWild: part[0] == '*' || part[0] == ':',
 			}
 		}
 		root = root.son[part]
 	}
 	root.path = path
-	key := method + "-" + path
 	r.handlers[key] = handler
 }
 
@@ -62,7 +73,7 @@ func (r *router) getRoute(method, path string) (*trie, map[string]string) {
 			if node.part == part || node.isWild {
 				if node.part[0] == '*' {
 					param[node.part[1:]] = strings.Join(parts[i:], "/")
-				}else if node.part[0] == ':' {
+				} else if node.part[0] == ':' {
 					param[node.part[1:]] = part
 				}
 				temp = node.part
@@ -90,7 +101,7 @@ func (r *router) getRoute2(method, path string) (*trie, map[string]string) {
 		}
 		node := root.son[part]
 		if node.isWild {
-			if node.part[0] == '*'{
+			if node.part[0] == '*' {
 				param[node.part[1:]] = strings.Join(parts[i:], "/")
 			} else if node.part[0] == ':' {
 				param[node.part[1:]] = part
