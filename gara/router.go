@@ -1,9 +1,7 @@
 package gara
 
 import (
-	"fmt"
 	"net/http"
-	"strings"
 )
 
 type router struct {
@@ -20,111 +18,41 @@ func newRouter() *router {
 	}
 }
 
+// handle 处理路由
 func (r *router) handle(ctx *Context) {
 	node, param := r.getRoute(ctx.Method, ctx.Path)
-	for k, v := range r.handlers {
-		fmt.Println(k, v)
-	}
 	if node != nil {
 		ctx.Params = param
 		key := ctx.Method + "-" + node.path
 		if handler, ok := r.handlers[key]; ok {
 			handler(ctx)
-		}else {
-			fmt.Println("hahaha")
 		}
 	} else {
 		ctx.String(http.StatusNotFound, "404 not found: %s\n", ctx.Path)
 	}
 }
 
+// addRoute 往路由树上插入路由
 func (r *router) addRoute(method, path string, handler HandlerFunc) {
-	parts := parsePath(path)
+	// 获取这类请求方法（如get/post）的根节点，如果没有则创建
 	if _, ok := r.roots[method]; !ok {
 		r.roots[method] = &trie{son: make(map[string]*trie)}
 	}
 	root := r.roots[method]
+	root.insert(path)
+	// 存储每个路由的执行方法
 	key := method + "-" + path
-	for _, part := range parts {
-		if root.son[part] == nil {
-			root.son[part] = &trie{
-				part:   part,
-				son:    make(map[string]*trie),
-				isWild: part[0] == '*' || part[0] == ':',
-			}
-		}
-		root = root.son[part]
-	}
-	root.path = path
 	r.handlers[key] = handler
 }
 
+// getRoute 从路由树上获取路由
 func (r *router) getRoute(method, path string) (*trie, map[string]string) {
-	parts := parsePath(path)
-	param := make(map[string]string)
 	var root *trie
 	var ok bool
 	if root, ok = r.roots[method]; !ok {
 		return nil, nil
 	}
-	for i, part := range parts {
-		var temp string
-		for _, node := range root.son {
-			if node.part == part || node.isWild {
-				if node.part[0] == '*' {
-					param[node.part[1:]] = strings.Join(parts[i:], "/")
-				} else if node.part[0] == ':' {
-					param[node.part[1:]] = part
-				}
-				temp = node.part
-			}
-		}
-		if temp[0] == '*' {
-			return root.son[temp], param
-		}
-		root = root.son[temp]
-	}
-	return root, param
+	return root.search(path)
 }
 
-func (r *router) getRoute2(method, path string) (*trie, map[string]string) {
-	parts := parsePath(path)
-	param := make(map[string]string)
-	var root *trie
-	var ok bool
-	if root, ok = r.roots[method]; !ok {
-		return nil, nil
-	}
-	for i, part := range parts {
-		if root.son[part] == nil {
-			return nil, nil
-		}
-		node := root.son[part]
-		if node.isWild {
-			if node.part[0] == '*' {
-				param[node.part[1:]] = strings.Join(parts[i:], "/")
-			} else if node.part[0] == ':' {
-				param[node.part[1:]] = part
-			}
-		}
-		if node.part[0] == '*' {
-			return root, param
-		}
-		root = root.son[part]
-	}
-	return root, param
-}
 
-func parsePath(path string) []string {
-	res := make([]string, 0)
-	parts := strings.Split(path, "/")
-	for _, part := range parts {
-		if part != "" {
-			res = append(res, part)
-			if part[0] == '*' {
-				break
-			}
-		}
-	}
-	return res
-}
